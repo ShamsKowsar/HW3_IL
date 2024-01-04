@@ -13,11 +13,12 @@ class Q_Learning():
     self.learning_rate=learning_rate
     self.discount_factor=discount_factor
     self.epsilon=epsilon
+    self.initial_epsilon=epsilon
     self.num_states=env.get_state_size()
-    # print(env.get_state_size())
-    # print(env.get_action_size())
     self.num_actions=env.get_action_size()
     self.q_table=np.zeros((env.get_state_size(),env.get_action_size()))
+    self.with_decreasing_learning_rate=with_decreasing_learning_rate
+    
   def select_action(self,current_state):
     _=random.uniform(0,1)
     if _<self.epsilon:
@@ -40,10 +41,37 @@ class Q_Learning():
     for i in range(self.num_actions):
       possible_values.append(self.q_table[next_state][i])
     self.q_table[current_state][selected_action]=self.q_table[current_state][selected_action]+learning_rate*(reward-self.q_table[current_state][selected_action]+self.discount_factor*max(possible_values))
+  def set_render(self):
+    self.env.set_render()
+  def generate_episode(self):
+        history = []
+        current_state = self.env.convert_location_to_state(self.env.reset()[0]["agent"])
+        terminated = False
+        count=0
+        while not terminated and self.env.health > 15 and self.env.battery > 5:
+            selected_action=np.argmax(self.q_table[current_state])
+                
+            # print(self.env._get_obs()['agent'])
+            # print(selected_action)
+            observation, cur_reward, terminated, truncated, info = self.env.step(
+                selected_action
+            )
+            history.append([current_state, selected_action, cur_reward])
+            next_state = self.env.convert_location_to_state(observation["agent"])
+            # if self.env.is_target(observation["agent"]) or self.env.is_problem_maker(next_state):
+                # print('episode ended with target')
+                # print(next_state)
 
+            if(next_state==current_state):
+                count+=1
+            current_state = next_state
+            if terminated:
+                history.append([current_state, selected_action, 1000])
+        return history
   def q_learning(self):
     learning_rate=self.learning_rate
     reward_in_each_episode=[]
+    episode_length=[]
     for _ in range(750):
       episode=[]
 
@@ -64,8 +92,11 @@ class Q_Learning():
 
 
       reward_in_each_episode.append(reward)
-      learning_rate=self.learning_rate/(_/100+1)
-      # print(episode)
-      # print(f'end of episode{_+1}')
-    # print(self.q_table)
-    return reward_in_each_episode,self.q_table
+      episode_length.append(count)
+      if self.with_decreasing_learning_rate:
+        learning_rate=self.learning_rate/(_/50+1)
+      self.epsilon=self.initial_epsilon/(1+_/250)
+        
+        
+
+    return reward_in_each_episode,self.q_table,episode_length

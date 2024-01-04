@@ -44,10 +44,7 @@ class SARSA():
 
 
   def update_policy(self,current_state,selected_action,reward,next_state,next_state_selected_action,learning_rate):
-    possible_values=[]
-    for i in range(self.num_actions):
-      possible_values.append(self.q_table[next_state][i])
-    # print(self.q_table[current_state][selected_action])
+    # possible_values=[]
 
     self.q_table[current_state][selected_action]=self.q_table[current_state][selected_action]+learning_rate*(reward-self.q_table[current_state][selected_action]+self.discount_factor*self.q_table[next_state][next_state_selected_action])
     # print(self.q_table[current_state][selected_action])
@@ -55,6 +52,7 @@ class SARSA():
   def SARSA(self):
     learning_rate=self.learning_rate
     reward_in_each_episode=[]
+    episode_len=[]
 
     for _ in range(750):
       episode=[]
@@ -82,9 +80,10 @@ class SARSA():
         # print(f"{current_state},{cur_reward},{selected_action}")
 
       reward_in_each_episode.append(reward)
+      episode_len.append(count)
       # learning_rate=self.learning_rate/(_/100+1)
 
       # print(episode)
       # print(f'end of episode{_+1}')
     # print(self.q_table)
-    return reward_in_each_episode,self.q_table
+    return reward_in_each_episode,self.q_table,episode_len

@@ -1,13 +1,27 @@
+# I assumed that after hitting wals or obstacles, it receive the negative rewrad but stay in previous place.
+# In rendering, target is shown with green, start point is shown with red and agent is a blue circle.
+import gym
+from gym import spaces
+import pygame
+import numpy as np
+from collections import deque
+import random
+import matplotlib.pyplot as plt
+SEED=184
 class GridWorldEnv(gym.Env):
     global SEED
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
-
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 100}
+    # def near_border(self,location):
+    #     if (location[0]==0 or location[0]==self.size-1) and (location[1]!=0 and location[1]! )
+    def is_target(self,location):
+        return location[0]==self._target_location[0] and location[1]==self._target_location[1]
     def check_close(self, ob1, ob2):
         if (ob1[1] == ob2[1] and abs(ob1[0] - ob2[0]) == 1) or (
             ob1[0] == ob2[0] and abs(ob1[1] - ob2[1]) == 1
         ):
             return True
-
+    def set_render(self):
+        self.render_mode='human'
     def is_path_possible(self, grid_size, start, goal, obstacles):
         grid = [[0] * grid_size for _ in range(grid_size)]
         grid[start[0]][start[1]] = 1
@@ -24,7 +38,7 @@ class GridWorldEnv(gym.Env):
                 new_pos = (curr_pos[0] + move[0], curr_pos[1] + move[1])
 
                 if 0 <= new_pos[0] < grid_size and 0 <= new_pos[1] < grid_size:
-                    if grid[new_pos[0]][new_pos[1]] == 0 and new_pos not in obstacles:
+                    if grid[new_pos[0]][new_pos[1]] == 0 and ([new_pos[0],new_pos[1]] not in obstacles):
                         grid[new_pos[0]][new_pos[1]] = 1
                         queue.append(new_pos)
 
@@ -102,7 +116,9 @@ class GridWorldEnv(gym.Env):
               ax.text(j, i, str(i * grid_size + j), ha='center', va='center', color='black')
 
       # Show the plot
-      plt.show()
+      fig.show()
+      self.is_path_possible(grid_size,start,end,obstacles)
+
 
     def generate_map(self, size, num_obstacles):
         agent_and_goal_positions = [
@@ -157,6 +173,38 @@ class GridWorldEnv(gym.Env):
     def convert_location_to_state(self,location):
       # print(location)
       return location[0]*self.size+location[1]
+    def find_shortest_path(self,grid_size, start, end, obstacles):
+        visited = set()
+        queue = deque([(start, [])])  # Each element in the queue is a tuple: (current_point, current_path)
+
+        while queue:
+            current_point, current_path = queue.popleft()
+
+            if current_point == end:
+                return current_path + [end]
+
+            if current_point in visited:
+                continue
+
+            visited.add(current_point)
+
+            neighbors = self.get_neighbors(current_point, grid_size)
+            valid_neighbors = [neighbor for neighbor in neighbors if neighbor not in obstacles and self.is_within_grid(neighbor, grid_size)]
+
+            for neighbor in valid_neighbors:
+                queue.append((neighbor, current_path + [current_point]))
+
+        return None  # No path found
+
+    def get_neighbors(self,point, grid_size):
+        row, col = point
+        neighbors = [(row + 1, col), (row - 1, col), (row, col + 1), (row, col - 1)]
+        return neighbors
+
+    def is_within_grid(self,point, grid_size):
+        row, col = point
+        return 0 <= row < grid_size and 0 <= col < grid_size
+
     def __init__(self, render_mode=None, size=5):
         self.size = size  # The size of the square grid
         self.window_size = 512  # The size of the PyGame window
@@ -164,9 +212,11 @@ class GridWorldEnv(gym.Env):
         self.reward=0
         self.health=100
         self.battery=100
+        # self.render_mode='human'
         self.start,self.end,self.obstacles,self.free_cells=self.generate_map(self.size,self.count_of_obstacles)
         # Observations are dictionaries with the agent's and the target's location.
         # Each location is encoded as an element of {0, ..., `size`}^2, i.e. MultiDiscrete([size, size]).
+
         self.observation_space = spaces.Dict(
             {
                 "agent": spaces.Box(0,size-1, shape=(2,), dtype=int),
@@ -189,8 +239,8 @@ class GridWorldEnv(gym.Env):
             3: np.array([0, -1]),
         }
 
-        assert render_mode is None or render_mode in self.metadata["render_modes"]
-        self.render_mode = render_mode
+        # assert render_mode is None or render_mode in self.metadata["render_modes"]
+        # self.render_mode = render_mode
 
         """
         If human-rendering is used, `self.window` will be a reference
@@ -200,7 +250,14 @@ class GridWorldEnv(gym.Env):
         first time.
         """
         self.window = None
+
         self.clock = None
+        # self._agent_location = np.array(self.start)
+        # self._target_location = np.array(self.end)
+        # print(self._get_info()['distance'])
+        # u=self.find_shortest_path(self.size, self.start, self.end, self.obstacles)
+        # print(len(u))
+        input('Press Any Key to Continue...')
 
     def _get_obs(self):
         return {"agent": self._agent_location, "target": self._target_location}
@@ -257,21 +314,30 @@ class GridWorldEnv(gym.Env):
         if _[0]==location[0] and _[1]==location[1]:
           return True
       return False
+    def is_problem_maker(self,state):
+        location=[int(state/6),state%6]
+        for _ in self._action_to_direction:
+            if self.is_target(location+self._action_to_direction[_]):
+                return True
+        return False
+        
     def step(self, action):
         terminated=False
         direction = self._action_to_direction[action]
         action_with_wind_prob=random.uniform(0,1)
-
+        new_direction=direction+[0,0]
         if(0.8<action_with_wind_prob<0.9):
-          direction*=-1
+          new_direction=-1*direction
         elif action_with_wind_prob>0.9:
-          direction=[0,0]
+          new_direction=[0,0]
         self.battery-=np.random.normal(loc=0.35, scale=0.15)
-        new_location=np.clip(self._agent_location + direction, 0, self.size - 1)
-        if new_location[0]== self._target_location[0] and new_location[1]== self._target_location[1] :
+        new_location=np.clip(self._agent_location + new_direction, 0, self.size - 1)
+        if new_location[0]== self._target_location[0] and new_location[1]== self._target_location[1] or self.battery<5 or self.health<15 :
           # print(f'new_location={new_location}')
           terminated=True
           reward=self.give_reward(2)
+          self._agent_location=np.array(new_location)
+
         elif self.is_obstacle(new_location):
           reward=self.give_reward(0)
           self.health-=np.random.normal(loc=0.2, scale=0.2)
@@ -316,9 +382,17 @@ class GridWorldEnv(gym.Env):
         # First we draw the target
         pygame.draw.rect(
             canvas,
+            (0, 255, 0),
+            pygame.Rect(
+                pix_square_size * np.array(self.end),
+                (pix_square_size, pix_square_size),
+            ),
+        )
+        pygame.draw.rect(
+            canvas,
             (255, 0, 0),
             pygame.Rect(
-                pix_square_size * self._target_location,
+                pix_square_size * np.array(self.start),
                 (pix_square_size, pix_square_size),
             ),
         )
