@@ -8,7 +8,8 @@ import random
 import matplotlib.pyplot as plt
 
 class On_MC():
-  def __init__(self,env,discount_factor,epsilon,with_decreasing_learning_epsilon=False) :
+  
+  def __init__(self,env,discount_factor,epsilon,with_decreasing_learning_epsilon=False,reduction_factor=1) :
     self.env=env
     self.discount_factor=discount_factor
     self.epsilon=epsilon
@@ -16,6 +17,8 @@ class On_MC():
     self.num_actions=env.get_action_size()
     self.q_table=np.zeros((env.get_state_size(),env.get_action_size()))
     self.policy=np.zeros((env.get_state_size(),env.get_action_size()))
+    self.with_decreasing_learning_epsilon=with_decreasing_learning_epsilon
+    self.reduction_factor=reduction_factor
   def soft_policy(self,current_state):
     _=random.uniform(0,1)
     if _<self.epsilon:
@@ -41,6 +44,7 @@ class On_MC():
 
         return random.randint(0,self.num_actions-1)
       return np.argmax(possible_values)
+  
   def generate_episode(self):
     history=[]
     current_state=self.env.convert_location_to_state(self.env.reset()[0]['agent'])
@@ -84,8 +88,8 @@ class On_MC():
   def update_policy(self,s,choosen_best_action):
     for i in range(self.num_actions):
       if i!=choosen_best_action:
-        self.policy[s][i]=1-self.epsilon+self.epsilon/4
-    self.policy[s][choosen_best_action]=self.epsilon/4
+        self.policy[s][i]=1-self.epsilon+self.epsilon/self.num_actions
+    self.policy[s][choosen_best_action]=self.epsilon/self.num_actions
 
   def choose_best_action(self,state):
     possible_values=[]
@@ -100,11 +104,12 @@ class On_MC():
     return True
   def On_MC(self):
     reward_in_each_episode=[]
+    episoed_length=[]
     returns= ([[[] for _ in range(self.num_actions)] for _ in range(self.num_states)])
-
-
+    
     for _ in range(750):
       episode=self.generate_episode()
+      episoed_length.append(len(episoed_length))
       G=0
       T=len(episode)
       reward=0
@@ -120,8 +125,10 @@ class On_MC():
           self.update_policy(s,best_action)
         reward+=r
       reward_in_each_episode.append(reward)
+      if self.with_decreasing_learning_epsilon:
+        self.epsilon=1/(1+_/self.reduction_factor)
 
 
 
 
-    return reward_in_each_episode,self.q_table
+    return reward_in_each_episode,self.q_table,episoed_length

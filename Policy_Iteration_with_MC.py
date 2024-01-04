@@ -23,8 +23,8 @@ import numpy as np
 from collections import deque
 import random
 import matplotlib.pyplot as plt
-
-class Policy_Iteration:
+from On_MC import *
+class Policy_IterationWMC:
     def __init__(
         self,
         env,
@@ -37,8 +37,12 @@ class Policy_Iteration:
         self.epsilon = epsilon
         self.num_states = env.get_state_size()
         self.num_actions = env.get_action_size()
-        self.values = np.zeros(env.get_state_size())-1000
         self.policy = np.random.rand(env.get_state_size(), env.get_action_size())
+    
+        agent = On_MC(self.env, self.discount_factor, self.epsilon,with_decreasing_learning_epsilon=False)
+        reward_in_each_episode, q_table,count = agent.On_MC()
+        self.values=np.random.rand(self.num_states)
+        self.On_MC()
         # self.generate_policy()
         self.policy_stable = False
         self.value_stable = False
@@ -211,7 +215,38 @@ class Policy_Iteration:
                 self.values[state]=self.calc_2(state,np.argmax(self.policy[state]))  
                 delta=max(delta,abs(temp_v-self.values[state]))                  
             
+    def On_MC(self):
+        returns = [[] for _ in range(self.num_states)]
+        els=[]
+        delta=0
+        for _ in range(750):
+            episode = self.generate_episode()
+            G = 0
+            T = len(episode)
+            reward = 0
+            for i in range(T):
 
+                t=T-i-1
+                s, a, r = episode[t]
+                G = self.discount_factor * G + r
+
+                if not self.check_first_visit(episode, t, episode[T - i - 1]):
+                    returns[s].append(G)
+                    old_value=self.values[s]
+                    new_value=np.mean(returns[s])
+                    if(self.env.is_obstacle([int(s/6),s%6])):
+                        self.values[s] = -100
+                        
+                        
+                    self.values[s] = new_value
+                    if self.env.is_target([int(s/6),s%6]):
+                        self.values[s]=1000
+                    delta=max(delta,abs(old_value-new_value))
+                    if(delta<0.05):
+                        self.value_stable=True
+
+        return self.values
+            
     def policy_improvement(self):
         # for _ in range(self.num_states):
         #     print(f"state={_} and value= {self.values[_]}")
@@ -228,21 +263,7 @@ class Policy_Iteration:
         count=0
         rs=[]
         len_ep=[]
-    
-        while (not self.policy_stable ) and count<100:
-            ep=self.generate_episode()
-            len_ep.append(len(ep))
-            self.policy_eval()
-            self.policy_improvement()
-            count+=1
-            print(count)
-        return self.policy, self.values,count
-
-    def fit_episode_generating(self):
-        count=0
-        rs=[]
-        len_ep=[]
-        rews=[]
+        # self.MC_evaluation()
     
         while (not self.policy_stable ) or count<50:
             ep=self.generate_episode()
@@ -251,11 +272,29 @@ class Policy_Iteration:
                 s,a,r=x
                 if(r!=1000):
                     vall+=r
-            rews.append(vall)
-            len_ep.append(len(ep))
+            rs.append(rs)
             self.policy_eval()
             self.policy_improvement()
             count+=1
             print(count)
-        return rews, self.values,len_ep
+        return rs, self.values,count
+    def fit_2(self):
+        count=0
+        rs=[]
+        len_ep=[]
+    
+        while (not self.policy_stable ) and count<50:
+            ep=self.generate_episode()
+            vall=0
+            for x in ep:
+                s,a,r=x
+                if(r!=1000):
+                    vall+=r
+            rs.append(rs)
+            if (not self.policy_stable ):
+                self.On_MC()
+                self.policy_improvement()
+            count+=1
+            print(count)
+        return rs, self.values,count
 

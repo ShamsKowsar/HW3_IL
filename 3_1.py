@@ -1,13 +1,19 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from GridWorld_env import *
+from nSARSA import *
 from Q_Learning import *
 from n_step_bt import *
-from SARSA import *
+from On_MC import *
 import seaborn as sns
 
 
+
+
 SEED = 184
+
+ba_s=[None for _ in range(3)]
+br_s=[0 for _ in range(3)]
 def mean_without_outliers(data, k=1.5):
     """
     Calculate the mean of the data while ignoring outliers using Tukey's fences.
@@ -30,7 +36,6 @@ def mean_without_outliers(data, k=1.5):
 
 
 
-
 def get_optimal_policy(q_table):
     new_q_table = np.zeros((q_table.shape[0], q_table.shape[1]))
     for i in range(len(q_table)):
@@ -40,13 +45,13 @@ def get_optimal_policy(q_table):
 
 
 def draw_curves(values):
-    cmap = plt.get_cmap("tab10")
+    cmap = plt.get_cmap('tab10')
     random_colors = [cmap(i) for i in np.linspace(0, 1, 10)]
     plt.figure()
-    flag = True
+    flag =True
     for _ in values:
-        vals1 = _[0]
-        label1 = _[1]
+        vals1=_[0]
+        label1=_[1]
         mean_value = np.mean(vals1, axis=0)
         std_value = np.std(vals1, axis=0)
         upper_bound = mean_value + 1.96 * std_value / np.sqrt(len(vals1[0]))
@@ -58,56 +63,53 @@ def draw_curves(values):
             upper_bound,
             alpha=0.5,
             label=f"Confidence Interval for {label1}",
-            color=random_colors[values.index(_)],
-        )
-        flag = False
+            color=random_colors[values.index(_)]
+ )
+        flag=False
     plt.legend()
     plt.show()
 
+rewards=[]
 
-rewards = []
 
-ba_s=[None for _ in range(4)]
-br_s=[0 for _ in range(4)]
+
 gwe = GridWorldEnv(size=6)
 np.random.seed(SEED)
 random.seed(SEED)
-list1 = [[[],'SARSA']]
+start=0.1
+list1=[[[],'MC policy total rewards in each episode-reducing epsilon-factor=50'],[[],'MC policy total rewards in each episode-reducing epsilon-factor=200'],[[],'MC policy total rewards in each episode-constant epsilon']]
 for i in range(10):
     print(f"Agent{i+1}")
     gwe.reset()
-
-    agent = SARSA(gwe, 0.1, 0.9, 0.1)
-    reward_in_each_episode, q_table, episode_len = agent.SARSA()
-
+    agent = On_MC(gwe, 0.9, 1,with_decreasing_learning_epsilon=True,reduction_factor=50)
+    reward_in_each_episode, q_table = agent.On_MC()
     list1[0][0].append(reward_in_each_episode)
     if mean_without_outliers(reward_in_each_episode)>br_s[0]:
         br_s[0]=mean_without_outliers(reward_in_each_episode)
         ba_s[0]=agent
+for i in range(10):
+    print(f"Agent{i+1}")
+    gwe.reset()
+    agent = On_MC(gwe, 0.9, 1,with_decreasing_learning_epsilon=True,reduction_factor=200)
+    reward_in_each_episode, q_table = agent.On_MC()
+    list1[1][0].append(reward_in_each_episode)
+    if mean_without_outliers(reward_in_each_episode)>br_s[1]:
+        br_s[1]=mean_without_outliers(reward_in_each_episode)
+        ba_s[1]=agent
 
-for _ in range(3):
-    n = 10**(_)
+for i in range(10):
+    print(f"Agent{i+1}")
+    gwe.reset()
+    agent = On_MC(gwe, 0.9, 0.1,with_decreasing_learning_epsilon=False)
+    reward_in_each_episode, q_table = agent.On_MC()
+    list1[2][0].append(reward_in_each_episode)
+    if mean_without_outliers(reward_in_each_episode)>br_s[2]:
+        br_s[2]=mean_without_outliers(reward_in_each_episode)
+        ba_s[2]=agent
 
-    list1.append([[], f"n step backup tree,n={n}"])
 
-    for i in range(10):
-        print(f"Agent{i+1}")
-        gwe.reset()
-
-        agent = NSTBT(gwe, 0.1, 0.9, 0.1, n)
-        (
-            reward_in_each_episode,
-            q_table,
-            policy,
-            len_ep
-            
-        ) = agent.n_step_backup_tree()
-        if mean_without_outliers(reward_in_each_episode)>br_s[0]:
-            br_s[_+1]=mean_without_outliers(reward_in_each_episode)
-            ba_s[_+1]=agent
-        list1[_+1][0].append(reward_in_each_episode)
 draw_curves(list1)
-for z in range(4):
+for z in range(3):
     reward=[]
     ep_len=[]
     for _ in range(10):
@@ -125,4 +127,5 @@ for z in range(4):
 print('i assumed that entering fianl state is equal to getting 1000 reward')
 print(f'mean reward for agent {z}={np.mean(reward)}')
 print(f'mean episode length for agent {z}={np.mean(ep_len)}')
+
 

@@ -154,6 +154,8 @@ for _ in range(10):
         
         rew+=r
     reward.append(rew)
+print('i assumed that entering fianl state is equal to getting 1000 reward')
+
 print(f'mean reward for agent 3={np.mean(reward)}')
 print(f'mean episode length for agent 3={np.mean(ep_len)}')
 # draw_curves(list_1)
